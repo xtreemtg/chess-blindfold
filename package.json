@@ -1,0 +1,71 @@
+{
+  "name": "blindfold-chess",
+  "version": "2.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "webpack-dev-server --config ./webpack.dev.js --mode development",
+    "build": "webpack --config webpack.prod.js",
+    "test": "jest",
+    "prepare": "husky install",
+    "prettier": "prettier --write .",
+    "eslint": "eslint . --ext .js --ext .jsx"
+  },
+  "jest": {
+    "moduleNameMapper": {
+      "\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$": "<rootDir>/reactTests/__mocks__/fileMock.js",
+      "\\.(css|less)$": "<rootDir>/__mocks__/styleMock.js"
+    },
+    "verbose": true,
+    "testURL": "http://localhost/",
+    "setupFilesAfterEnv": [
+      "<rootDir>/src/jsdomSetup.js"
+    ],
+    "testPathIgnorePatterns": [
+      "<rootDir>/node_modules/",
+      "<rootDir>/legacy_notes_and_workbook/",
+      "<rootDir>/client/src/stylesheets/"
+    ]
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/preset-react": "^7.14.5",
+    "@wojtekmaj/enzyme-adapter-react-17": "0.6.3",
+    "enzyme": "^3.11.0",
+    "jest": "^27.2.5",
+    "react-hot-loader": "^4.13.0",
+    "webpack-dev-server": "^4.13.1"
+  },
+  "dependencies": {
+    "@babel/preset-env": "^7.15.8",
+    "babel-loader": "^8.2.2",
+    "bootstrap": "^5.1.1",
+    "css-loader": "6.4.0",
+    "es2015": "0.0.0",
+    "eslint": "^8.7.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-react": "^7.28.0",
+    "eslint-plugin-react-hooks": "^4.3.0",
+    "husky": "^7.0.4",
+    "immutable": "^3.8.2",
+    "prettier": "^2.4.1",
+    "prop-types": "^15.8.1",
+    "react": "^17.0.2",
+    "react-bootstrap": "2.1.1",
+    "react-chessboard": "^4.6.0",
+    "react-chessdiagram": "^1.3.3",
+    "react-dom": "^17.0.2",
+    "react-select": "^5.1.0",
+    "react-table": "^7.7.0",
+    "stockfish": "^8.0.0",
+    "style-loader": "3.3.0",
+    "styled-components": "^5.3.1",
+    "v8-compile-cache": "^2.3.0",
+    "webpack": "^5.76.2",
+    "webpack-cli": "^5.0.1",
+    "webpack-merge": "^5.8.0",
+    "webworker": "^0.8.4"
+  }
+}
