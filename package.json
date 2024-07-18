@@ -9,7 +9,9 @@
     "test": "jest",
     "prepare": "husky install",
     "prettier": "prettier --write .",
-    "eslint": "eslint . --ext .js --ext .jsx"
+    "eslint": "eslint . --ext .js --ext .jsx",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build"
   },
   "jest": {
     "moduleNameMapper": {
@@ -34,6 +36,7 @@
     "@babel/preset-react": "^7.14.5",
     "@wojtekmaj/enzyme-adapter-react-17": "0.6.3",
     "enzyme": "^3.11.0",
+    "gh-pages": "^6.1.1",
     "jest": "^27.2.5",
     "react-hot-loader": "^4.13.0",
     "webpack-dev-server": "^4.13.1"

@@ -15,12 +15,22 @@ npm run build
 
 SERVEDIR=serve_content/chess-blindfold
 
+mkdir -p ${SERVEDIR}
 
+# Move the build output to the SERVEDIR
+cp -r serve_content/prod/* ${SERVEDIR}
+cp -r serve_content/shared/* ${SERVEDIR}
+cp serve_content/index_prod.html ${SERVEDIR}/index.html
 
-ssh dev "mv ${SERVEDIR} ${SERVEDIR}_backup"
-ssh dev "mkdir ${SERVEDIR}"
-rsync -r serve_content/prod dev:$SERVEDIR
-rsync -r serve_content/shared dev:$SERVEDIR
-rsync serve_content/index_prod.html dev:$SERVEDIR/index.html
+echo "Deploying to GitHub Pages"
+
+# Go to the directory and initialize a git repository
+cd ${SERVEDIR}
+git init
+git add -A
+git commit -m "Deploy to GitHub Pages"
+
+# Force push to the gh-pages branch
+git push -f https://github.com/xtreemtg/chess-blindfold.git main:gh-pages
 
 echo "Completed deploy"
