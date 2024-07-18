@@ -23,15 +23,15 @@ jobs:
       - name: Build the app
         run: npm run build
       - name: Deploy to GitHub Pages
-          run: |
-            mkdir -p serve_content/chess-blindfold
-            cp -r serve_content/prod/* serve_content/chess-blindfold
-            cp -r serve_content/shared/* serve_content/chess-blindfold
-            cp serve_content/index_prod.html serve_content/chess-blindfold/index.html
-            cd serve_content/chess-blindfold
-            git init
-            git add -A
-            git commit -m "Deploy to GitHub Pages"
-            git push -f https://github.com/xtreemtg/chess-blindfold.git main:gh-pages
-          env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p serve_content/chess-blindfold
+          cp -r serve_content/prod/* serve_content/chess-blindfold
+          cp -r serve_content/shared/* serve_content/chess-blindfold
+          cp serve_content/index_prod.html serve_content/chess-blindfold/index.html
+          cd serve_content/chess-blindfold
+          git init
+          git add -A
+          git commit -m "Deploy to GitHub Pages"
+          git push -f https://github.com/xtreemtg/chess-blindfold.git main:gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
