@@ -9,9 +9,7 @@
     "test": "jest",
     "prepare": "husky install",
     "prettier": "prettier --write .",
-    "eslint": "eslint . --ext .js --ext .jsx",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d build"
+    "eslint": "eslint . --ext .js --ext .jsx"
   },
   "jest": {
     "moduleNameMapper": {

@@ -39,8 +39,10 @@ jobs:
       - name: Build Library
         run: |
           mkdir -p serve_content/chess-blindfold
-          cp -r serve_content/prod/* serve_content/chess-blindfold
-          cp -r serve_content/shared/* serve_content/chess-blindfold
+          mkdir -p serve_content/prod
+          mkdir -p serve_content/shared
+          cp -r serve_content/prod/* serve_content/chess-blindfold/prod
+          cp -r serve_content/shared/* serve_content/chess-blindfold/shared
           cp serve_content/index_prod.html serve_content/chess-blindfold/index.html
           echo "Contents of serve_content/chess-blindfold:"
           ls -la serve_content/chess-blindfold
