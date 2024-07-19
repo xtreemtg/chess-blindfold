@@ -172,6 +172,7 @@ var startingState = () => {
   state["boardAppear"] = false;
   state["moveTableAppear"] = true;
   state["autoMove"] = true;
+  state["boardWidth"] = 450
   return state;
 };
 
@@ -643,6 +644,25 @@ export class App extends React.Component {
     });
   };
 
+  increaseBoardWidth = () => {
+    this.setState(prevState => {
+      if (prevState.boardWidth < 650) {
+        return { boardWidth: prevState.boardWidth + 50 };
+      }
+      return null;
+    });
+  };
+
+  // Handler for decreasing the width
+  decreaseBoardWidth = () => {
+    this.setState(prevState => {
+      if (prevState.boardWidth > 200) {
+        return { boardWidth: prevState.boardWidth - 50 };
+      }
+      return null;
+    });
+  };
+
   downloadPGN = () => {
     const client = this.state.gameClient.client;
     const history = client.history({ verbose: true });
@@ -748,13 +768,16 @@ export class App extends React.Component {
   boardElement = () => {
     let lastMove = this.getLastVerboseMove();
     return (
-      <div style={{ display: "flex", justifyContent: "center" }}>
+      <div style={{ justifyContent: "center" }}>
         {/*<Board fen={this.state.gameClient.client.fen()} />*/}
+        <div style={{  height: "20%", marginBottom: "1%"}}>
+        <Button style={{marginRight: "1%"}} onClick={this.decreaseBoardWidth}>-</Button><Button onClick={this.increaseBoardWidth}>+</Button>
+        </div>
         <Chessboard
           position={this.state.gameClient.client.fen()}
           onPieceDrop={this.onDrop}
           boardOrientation={this.state.ownColorWhite ? "white" : "black"}
-          boardWidth={500}
+          boardWidth={this.state.boardWidth}
           animationDuration={100}
           customArrows={[lastMove]}
         />
