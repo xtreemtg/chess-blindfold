@@ -544,12 +544,13 @@ export class App extends React.Component {
         this.state.gameClient.client.undo();
         this.state.takebackCache.push(newMoves.last());
         newMoves = newMoves.splice(-1);
-        // if playing computer and the game is over, take back a full move, not half move
+        // if playing computer or the most recent move was the computer ending the game, then break early
         if (!this.state.autoMove || (!this.isPlayersMove() && gameOver)) {
           newState.colorToMoveWhite = !newState.colorToMoveWhite;
           break;
         }
       }
+      console.log(newState.colorToMoveWhite)
       newState.moves = newMoves;
       this.setState(newState);
     }
@@ -563,12 +564,13 @@ export class App extends React.Component {
         const lastUndoneMove = this.state.takebackCache.pop();
         this.state.gameClient.client.move(lastUndoneMove, { sloppy: true });
         newMoves = newMoves.push(lastUndoneMove);
-        if (!this.state.autoMove || this.state.gameClient.client.game_over()) {
-          // if playing computer, redo a full move, not half move
+        if (!this.state.autoMove || (i === 0 && this.state.gameClient.client.game_over())) {
+          // if playing computer, or the most recent move ended the game, then only take back a half move
           newState.colorToMoveWhite = !newState.colorToMoveWhite;
           break;
         }
       }
+      console.log(newState.colorToMoveWhite)
       newState.moves = newMoves;
       this.setState(newState);
     }
@@ -646,7 +648,7 @@ export class App extends React.Component {
 
   increaseBoardWidth = () => {
     this.setState(prevState => {
-      if (prevState.boardWidth < 650) {
+      if (prevState.boardWidth < 850) {
         return { boardWidth: prevState.boardWidth + 50 };
       }
       return null;
