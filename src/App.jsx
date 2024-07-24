@@ -28,6 +28,7 @@ import {
 } from "./helpers.jsx";
 import { getBest, makeRandomMove } from "./engine.js";
 
+
 /* The window to enter moves. There are currently two options:
 (1) Click on buttons, one for each move
 (2) Enter the move in a text field and hit enter - disabled by default
@@ -152,6 +153,7 @@ const resetState = (fen = null) => {
     showType: "make",
     takebackCache: [],
     inputFenValid: true,
+    optionSquares: {}
   };
 };
 
@@ -592,6 +594,38 @@ export class App extends React.Component {
       promotion: piece.slice(-1).toLowerCase(),
     });
   };
+
+  onSquareCLick = (square) => {
+    console.log(square);
+  };
+
+  onSquareRightClick = (square) => {
+    console.log(square);
+  };
+
+  onPieceClick = (piece, square) => {
+    const moves = this.state.gameClient.client.moves({
+      square,
+      verbose: true,
+    });
+    if (moves.length === 0) {
+      this.setState({optionSquares: {}})
+      return
+    }
+    const newSquares = {};
+    moves.map((move) => {
+      newSquares[move.to] = {
+        background: "radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)",
+        borderRadius: "50%",
+      };
+      return move;
+    });
+    newSquares[square] = {
+      background: "rgba(255, 255, 0, 0.4)",
+    };
+    this.setState({optionSquares: newSquares})
+  }
+
   isPlayersMove = () =>
     this.state.ownColorWhite === this.state.colorToMoveWhite;
   makeComputerMove = () => {
@@ -744,7 +778,7 @@ export class App extends React.Component {
         {this.state.boardAppear ? "Hide Board" : "Show Board"}
       </Button>
       {this.state.boardAppear && this.boardElement()}
-      {this.isPlayersMove() | !this.state.autoMove && (
+      {this.isPlayersMove() | !this.state.autoMove ? (
         <Row>
           <MoveEntry
             enterMoveByKeyboard={this.state.enterMoveByKeyboard}
@@ -753,7 +787,7 @@ export class App extends React.Component {
             parentState={this.state}
           />
         </Row>
-      )}
+      ): null}
       <div>
         <Button
           style={{ marginBottom: "1%", marginTop: "1%" }}
@@ -778,10 +812,14 @@ export class App extends React.Component {
         <Chessboard
           position={this.state.gameClient.client.fen()}
           onPieceDrop={this.onDrop}
+          onSquareCLick={this.onSquareCLick}
+          onSquareRightClick={this.onSquareRightClick}
+          onPieceClick={this.onPieceClick}
           boardOrientation={this.state.ownColorWhite ? "white" : "black"}
           boardWidth={this.state.boardWidth}
           animationDuration={100}
           customArrows={[lastMove]}
+          customSquareStyles={this.state.optionSquares}
         />
       </div>
     );
