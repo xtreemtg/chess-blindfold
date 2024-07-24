@@ -153,7 +153,8 @@ const resetState = (fen = null) => {
     showType: "make",
     takebackCache: [],
     inputFenValid: true,
-    optionSquares: {}
+    clickSquaresData: {},
+    promotionData: {}
   };
 };
 
@@ -532,6 +533,8 @@ export class App extends React.Component {
       moves: newMoves,
       colorToMoveWhite: !this.state.colorToMoveWhite,
       takebackCache: [], // if you make a new move, automatically cancels any takeback history
+      clickSquaresData: {},
+      promotionData: {}
     };
     this.setState(newState, nextMoveCallback);
     setTimeout(() => this.alertGameOver(this.state.gameClient.client), 50);
@@ -595,35 +598,57 @@ export class App extends React.Component {
     });
   };
 
-  onSquareCLick = (square) => {
-    console.log(square);
-  };
-
-  onSquareRightClick = (square) => {
-    console.log(square);
-  };
-
-  onPieceClick = (piece, square) => {
-    const moves = this.state.gameClient.client.moves({
-      square,
-      verbose: true,
-    });
-    if (moves.length === 0) {
-      this.setState({optionSquares: {}})
-      return
-    }
-    const newSquares = {};
-    moves.map((move) => {
-      newSquares[move.to] = {
-        background: "radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)",
-        borderRadius: "50%",
+  onSquareClick = (square, piece) => {
+    const clickSquaresData = this.state.clickSquaresData
+    // if a square with a piece hasnt already been clicked or if you're clicking a different piece of your color
+    if(Object.keys(clickSquaresData).length === 0 || (piece !== undefined && ((piece[0] === "w") === this.state.colorToMoveWhite))) {
+      const client = this.state.gameClient.client
+      const moves = client.moves({
+        square,
+        verbose: true,
+      });
+      if (moves.length === 0) {
+        this.setState({clickSquaresData: {}})
+        return
+      }
+      const newSquares = {};
+      moves.map((move) => {
+        newSquares[move.to] = {
+          background:  client.get(move.to) &&
+          client.get(move.to).color !== client.get(square).color
+            ? "radial-gradient(circle, rgba(0,0,0,.1) 85%, transparent 85%)"
+            : "radial-gradient(circle, rgba(0,0,0,.1) 25%, transparent 25%)",
+          borderRadius: "50%",
+        };
+        return move;
+      });
+      newSquares[square] = {
+        background: "rgba(255, 255, 0, 0.4)",
       };
-      return move;
+      this.setState({clickSquaresData: {newSquares: newSquares, from: square, piece: piece}})
+    } else {
+      if(Object.keys(clickSquaresData).length === 0 ) return
+      const state = this.state;
+      // check for promotion
+      if (
+          (this.state.colorToMoveWhite && this.state.clickSquaresData.piece === "wP" && square[1] === "8") ||
+          (!this.state.colorToMoveWhite && this.state.clickSquaresData.piece === "bP" && square[1] === "1")
+          ){
+        this.setState({promotionData: {to: square, from: this.state.clickSquaresData.from}, clickSquaresData: {}})
+      } else{
+        const moves = {from: clickSquaresData.from, to: square}
+        this.makeMove(moves)
+      }
+    }
+
+  };
+
+  onPromotionPieceSelect = (piece, promoteFromSquare, promoteToSquare) => {
+    this.makeMove({
+      from:  promoteFromSquare !== undefined ? promoteFromSquare : this.state.promotionData.from,
+      to: promoteToSquare !== undefined ? promoteToSquare : this.state.promotionData.to,
+      promotion: piece.slice(-1).toLowerCase(),
     });
-    newSquares[square] = {
-      background: "rgba(255, 255, 0, 0.4)",
-    };
-    this.setState({optionSquares: newSquares})
   }
 
   isPlayersMove = () =>
@@ -812,14 +837,15 @@ export class App extends React.Component {
         <Chessboard
           position={this.state.gameClient.client.fen()}
           onPieceDrop={this.onDrop}
-          onSquareCLick={this.onSquareCLick}
-          onSquareRightClick={this.onSquareRightClick}
+          onSquareClick={this.onSquareClick}
           onPieceClick={this.onPieceClick}
           boardOrientation={this.state.ownColorWhite ? "white" : "black"}
           boardWidth={this.state.boardWidth}
           animationDuration={100}
           customArrows={[lastMove]}
-          customSquareStyles={this.state.optionSquares}
+          customSquareStyles={this.state.clickSquaresData.newSquares}
+          showPromotionDialog={Object.keys(this.state.promotionData).length !== 0}
+          onPromotionPieceSelect={this.onPromotionPieceSelect}
         />
       </div>
     );
