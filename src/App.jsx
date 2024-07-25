@@ -602,15 +602,17 @@ export class App extends React.Component {
     const clickSquaresData = this.state.clickSquaresData
     // if a square with a piece hasnt already been clicked or if you're clicking a different piece of your color
     if(Object.keys(clickSquaresData).length === 0 || (piece !== undefined && ((piece[0] === "w") === this.state.colorToMoveWhite))) {
-      const client = this.state.gameClient.client
-      const moves = client.moves({
-        square,
-        verbose: true,
-      });
+      const moves = this.state.gameClient.legalMoves.filter(move => move.from === square);
+      // const moves = client.moves({
+      //   square,
+      //   verbose: true,
+      // });
       if (moves.length === 0) {
         this.setState({clickSquaresData: {}})
         return
       }
+      const client = this.state.gameClient.client
+      debugger;
       const newSquares = {};
       moves.map((move) => {
         newSquares[move.to] = {

@@ -36,6 +36,7 @@ export class GameClient {
   constructor(fen = startingFen) {
     fen = fen === null ? startingFen : fen;
     this.client = newClient(fen);
+    this.legalMoves = this.client.moves({verbose: true})
   }
   temp = () => true;
   isMoveValid = (move) => {
@@ -48,6 +49,7 @@ export class GameClient {
   move = (mv) => this.client.move(mv, { sloppy: true });
 
   getStatus = () => {
+    this.legalMoves = this.client.moves({verbose: true})
     const halfMoveClock = getHalfmoveClock(this.client.fen());
     const client = this.client;
 
