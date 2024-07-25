@@ -612,7 +612,6 @@ export class App extends React.Component {
         return
       }
       const client = this.state.gameClient.client
-      debugger;
       const newSquares = {};
       moves.map((move) => {
         newSquares[move.to] = {
