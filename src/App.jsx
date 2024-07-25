@@ -168,6 +168,7 @@ var startingState = () => {
   var state = resetState();
   state["ownColorWhite"] = true;
   state["skillLevel"] = 1;
+  state["depthLevel"] = 3;
   state["showIfMate"] = false;
   state["showIfTakes"] = true;
   state["showIfCheck"] = true;
@@ -185,11 +186,11 @@ These are really very rough heuristics, but should be close enough for
 our purposes.
 */
 const getStockfishLevels = () => {
-  var values = [];
+  const values = [];
   const numLevels = 20;
   const minElo = 1100;
   const maxElo = 3100;
-  for (var i = 1; i <= numLevels; i++) {
+  for (let i = 1; i <= numLevels; i++) {
     const elo =
       Math.floor((minElo + (maxElo - minElo) * (i / numLevels)) / 100) * 100;
     values.push({ value: i, label: elo });
@@ -197,6 +198,7 @@ const getStockfishLevels = () => {
   values.unshift({ value: 0, label: "Random Moves" });
   return values;
 };
+
 
 const getDateAndTimeForPGN = () => {
   const now = new Date();
@@ -232,6 +234,8 @@ export class SettingsWindow extends React.Component {
   }
   render = () => {
     const values = getStockfishLevels();
+    // depth from 1 to 16 (too slow after 16)
+    const depths = Array.from({ length: 17 - 1}, (v, k) => ({value:k+1, label:k+1}))
 
     const valsButtons = [
       { str: "Yes", value: true },
@@ -314,6 +318,18 @@ export class SettingsWindow extends React.Component {
               isSearchable={false}
               onChange={this.props.setSkill}
               options={values}
+            />
+          </Col>
+          <Col xs={6}>
+            <div> Stockfish depth: </div>
+          </Col>
+          <Col xs={6}>
+            <Select
+              clearable={false}
+              value={{ label: this.props.depthLevel }}
+              isSearchable={false}
+              onChange={this.props.setDepth}
+              options={depths}
             />
           </Col>
         </Row>
@@ -662,7 +678,7 @@ export class App extends React.Component {
     const fen = this.state.gameClient.client.fen();
     if (this.state.skillLevel === 0)
       makeRandomMove(this.state.gameClient, this.makeMove);
-    else getBest(this.state.skillLevel, fen, this.makeMove);
+    else getBest(this.state.skillLevel, this.state.depthLevel, fen, this.makeMove);
   };
   shownElement = () => {
     switch (this.state.showType) {
@@ -875,6 +891,9 @@ export class App extends React.Component {
   setSkill = (skill) => {
     this.setState({ skillLevel: skill.value });
   };
+  setDepth = (depth) => {
+    this.setState({ depthLevel: depth.value });
+  };
   setOwnColor = (isWhite) =>
     this.setState({ ownColorWhite: isWhite }, this.makeComputerMove);
   setProperty = (name, value) => {
@@ -892,6 +911,8 @@ export class App extends React.Component {
     <SettingsWindow
       skillLevel={this.state.skillLevel}
       setSkill={this.setSkill}
+      depthLevel={this.state.depthLevel}
+      setDepth={this.setDepth}
       ownColorWhite={this.state.ownColorWhite}
       setOwnColor={this.setOwnColor}
       setProperty={this.setProperty}
