@@ -369,14 +369,14 @@ export class StatusWindow extends React.Component {
     ) : (
       <span>Make your move!</span>
     );
-    const computerText = this.props.computerMove ? (
-      <div>
-        <span>Computer played </span>
-        <Badge bg="secondary">{this.props.computerMove}</Badge>
-      </div>
-    ) : (
-      <span>Computer is waiting...</span>
-    );
+    const computerText = this.props.isComputerMove ? (<span>Computer is thinking...</span>) : (this.props.computerMove ?
+        (<div>
+            <span>Computer played </span>
+            <Badge bg="secondary">{this.props.computerMove}</Badge>
+          </div>
+        ) : (
+          <span>Computer is waiting...</span>
+        ));
     return (
       <div>
         <Row style={{ marginTop: 20 }}>
@@ -557,6 +557,7 @@ export class App extends React.Component {
   };
 
   takeback = () => {
+    if(!this.isPlayersMove()) return
     let newMoves = this.state.moves;
     const newState = { colorToMoveWhite: this.state.colorToMoveWhite };
     if (newMoves.size !== 0) {
@@ -578,6 +579,7 @@ export class App extends React.Component {
   };
 
   redoMove = () => {
+    if(!this.isPlayersMove()) return
     let newMoves = this.state.moves;
     const newState = { colorToMoveWhite: this.state.colorToMoveWhite };
     if (this.state.takebackCache.length > 0) {
@@ -607,14 +609,17 @@ export class App extends React.Component {
   };
 
   onDrop = (sourceSquare, targetSquare, piece) => {
-    this.makeMove({
-      from: sourceSquare,
-      to: targetSquare,
-      promotion: piece.slice(-1).toLowerCase(),
-    });
+    if (this.isPlayersMove() ){
+      this.makeMove({
+        from: sourceSquare,
+        to: targetSquare,
+        promotion: piece.slice(-1).toLowerCase(),
+      });
+    }
   };
 
   onSquareClick = (square, piece) => {
+    if(!this.isPlayersMove()) return;
     const clickSquaresData = this.state.clickSquaresData
     // if a square with a piece hasnt already been clicked or if you're clicking a different piece of your color
     if(Object.keys(clickSquaresData).length === 0 || (piece !== undefined && ((piece[0] === "w") === this.state.colorToMoveWhite))) {
@@ -668,8 +673,8 @@ export class App extends React.Component {
     });
   }
 
-  isPlayersMove = () =>
-    this.state.ownColorWhite === this.state.colorToMoveWhite;
+  isPlayersMove = () => !this.state.autoMove || this.state.ownColorWhite === this.state.colorToMoveWhite;
+
   makeComputerMove = () => {
     // Only make a computer move if it's not the player's turn
     if (this.isPlayersMove()) {
@@ -710,13 +715,13 @@ export class App extends React.Component {
   };
   getLastComputerMove = this.getLastMove(2, 1);
   getLastHumanMove = this.getLastMove(1, 2);
-  toggleBoardAppearance = () =>
-    this.setState({ boardAppear: !this.state.boardAppear });
-  toggleMoveTableAppearance = () =>
-    this.setState({ moveTableAppear: !this.state.moveTableAppear });
+  toggleBoardAppearance = () => {
+    this.setState({boardAppear: !this.state.boardAppear});
+  }
+  toggleMoveTableAppearance = () => this.setState({ moveTableAppear: !this.state.moveTableAppear });
   toggleAutoMove = () => {
     this.setState({ autoMove: !this.state.autoMove }, () => {
-      if (this.state.autoMove && !this.isPlayersMove()) {
+      if (!this.isPlayersMove()) {
         this.makeComputerMoveDelayed();
       }
     });
@@ -787,6 +792,7 @@ export class App extends React.Component {
         autoMove={this.state.autoMove}
         humanMove={this.getLastHumanMove()}
         computerMove={this.getLastComputerMove()}
+        isComputerMove={!this.isPlayersMove()}
       />
       <div style={{ marginBottom: "1%" }}>
         Insert custom FEN:
@@ -796,12 +802,13 @@ export class App extends React.Component {
         </div>
       </div>
 
-      <Button style={{ marginBottom: "1%" }} onClick={() => this.takeback()}>
+      <Button style={{ marginBottom: "1%" }} onClick={() => this.takeback()} active={this.isPlayersMove()}
+              disabled={!this.isPlayersMove()}>
         Take back move
       </Button>
       <Button
         style={{ marginBottom: "1%", marginLeft: "1%" }}
-        onClick={() => this.redoMove()}
+        onClick={() => this.redoMove()} active={this.isPlayersMove()} disabled={!this.isPlayersMove()}
       >
         Redo move
       </Button>
@@ -820,7 +827,7 @@ export class App extends React.Component {
         {this.state.boardAppear ? "Hide Board" : "Show Board"}
       </Button>
       {this.state.boardAppear && this.boardElement()}
-      {this.isPlayersMove() | !this.state.autoMove ? (
+      {this.isPlayersMove() ? (
         <Row>
           <MoveEntry
             enterMoveByKeyboard={this.state.enterMoveByKeyboard}
@@ -979,6 +986,8 @@ export class App extends React.Component {
               variant="primary"
               id="toggleAutoMove"
               onClick={() => this.toggleAutoMove()}
+              active={this.isPlayersMove()}
+              disabled={!this.isPlayersMove()}
             >
               {this.state.autoMove ? "Manual" : "Playing Computer"}{" "}
             </Button>
