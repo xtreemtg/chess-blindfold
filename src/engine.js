@@ -27,7 +27,6 @@ be a problem, since Stockfish is extremely strong even with such low depth, but
 let me know if you feel like the depth should be increased or settable in the app.
 */
 export const getBest = (level, depth, fen, callback) => {
-  console.log(depth)
   sf.postMessage("position fen " + fen);
   sf.postMessage("setoption name Skill Level value " + level);
   sf.postMessage("go depth " + depth);
