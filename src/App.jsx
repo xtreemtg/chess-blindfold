@@ -26,6 +26,7 @@ import {
   getHalfmoveClock,
   newClient,
 } from "./helpers.jsx";
+import { validateFen } from "chess.js"
 import { getBest, makeRandomMove } from "./engine.js";
 
 /* The window to enter moves. There are currently two options:
@@ -89,7 +90,7 @@ export class MoveEntry extends React.Component {
     return formattedMove;
   };
   render = () => {
-    const moves = this.props.gameClient.client.in_threefold_repetition()
+    const moves = this.props.gameClient.client.isThreefoldRepetition()
       ? []
       : this.props.gameClient.client.moves().sort(moveSortCompareFunction);
     const buttonForMove = (move) => (
@@ -218,6 +219,23 @@ const getDateAndTimeForPGN = () => {
   const utcTimeTag = `${hours}:${minutes}:${seconds}`;
   return [dateTag, timeTag, utcDateTag, utcTimeTag];
 };
+
+const alertGameOver = (client) => {
+    if (client.isGameOver()) {
+      // const halfMoveClock = getHalfmoveClock(client.fen());
+      if (client.isCheckmate()) {
+        alert(client.turn() === "b" ? "White Won!" : "Black Won!");
+      } else if (client.isStalemate()) {
+        alert(client.turn() === "b" ? "Black is in stalemate!" : "White is in stalemate!");
+      } else if (client.isInsufficientMaterial()) {
+        alert("Draw by insufficient material!");
+      } else if (client.isThreefoldRepetition()) {
+        alert("Draw by threefold repetition!");
+      } else if (client._halfMoves >= 100) {
+        alert("Draw by 50 move rule!");
+      }
+    }
+  };
 
 const getUTCDateAndTimeForPGN = () => {
   const now = new Date();
@@ -361,6 +379,7 @@ export class StatusWindow extends React.Component {
   constructor(props) {
     super(props);
   }
+
   render = () => {
     const humanText = this.props.humanMove ? (
       <div>
@@ -458,7 +477,6 @@ class InputComponent extends React.Component {
   };
 
   handleSubmit = () => {
-    debugger;
     let inputValue =
       this.state.inputValue === null
         ? this.props.defaultValue
@@ -527,31 +545,10 @@ export class App extends React.Component {
     if (this.state.boardAppear) setTimeout(this.makeComputerMove, 200);
     else this.makeComputerMove();
   };
-  alertGameOver = (client) => {
-    debugger;
-    if (client.game_over()) {
-      const halfMoveClock = getHalfmoveClock(client.fen());
-      if (client.in_checkmate()) {
-        alert(client.turn() === "b" ? "White Won!" : "Black Won!");
-      } else if (client.in_stalemate()) {
-        alert(
-          client.turn() === "b"
-            ? "Black is in stalemate!"
-            : "White is in stalemate!"
-        );
-      } else if (client.insufficient_material()) {
-        alert("Draw by insufficient material!");
-      } else if (client.in_threefold_repetition()) {
-        alert("Draw by threefold repetition!");
-      } else if (halfMoveClock >= 100) {
-        alert("Draw by 50 move rule!");
-      }
-    }
-  };
 
   makeMove = (move) => {
-    if (this.state.gameClient.client.game_over()) return;
-    const moveRes = this.state.gameClient.move(move, { sloppy: true });
+    if (this.state.gameClient.client.isGameOver()) return;
+    const moveRes = this.state.gameClient.move(move);
     if (moveRes === null) return;
     move = typeof move === "object" ? moveRes.san : move;
     const newMoves = this.state.moves.push(move);
@@ -567,11 +564,17 @@ export class App extends React.Component {
       promotionData: {},
     };
     this.setState(newState, nextMoveCallback);
-    setTimeout(() => this.alertGameOver(this.state.gameClient.client), 50);
+    setTimeout(() => {
+      alertGameOver(this.state.gameClient.client)
+    }, 0);
   };
-
+  takebackToBeginning = () =>{
+    const newState = resetState(this.state.customFen)
+    newState.takebackCache = this.state.gameClient.client.history().reverse()
+    this.setState(newState)
+  }
   takeback = () => {
-    let gameOver = this.state.gameClient.client.game_over();
+    let gameOver = this.state.gameClient.client.isGameOver();
     if (!gameOver && !this.isPlayersMove()) return;
     let newMoves = this.state.moves;
     const newState = { colorToMoveWhite: this.state.colorToMoveWhite };
@@ -598,11 +601,11 @@ export class App extends React.Component {
     if (this.state.takebackCache.length > 0) {
       for (let i = 0; i < 2; i++) {
         const lastUndoneMove = this.state.takebackCache.pop();
-        this.state.gameClient.client.move(lastUndoneMove, { sloppy: true });
+        this.state.gameClient.move(lastUndoneMove);
         newMoves = newMoves.push(lastUndoneMove);
         if (
           !this.state.autoMove ||
-          (i === 0 && this.state.gameClient.client.game_over())
+          (i === 0 && this.state.gameClient.client.isGameOver())
         ) {
           // if playing computer, or the most recent move ended the game, then only take back a half move
           newState.colorToMoveWhite = !newState.colorToMoveWhite;
@@ -615,8 +618,7 @@ export class App extends React.Component {
   };
 
   setFen = (fen) => {
-    debugger;
-    let isValidFen = this.state.gameClient.client.validate_fen(fen).valid;
+    let isValidFen = validateFen(fen).ok;
     if (isValidFen) {
       this.reset(fen);
     } else {
@@ -646,10 +648,6 @@ export class App extends React.Component {
       const moves = this.state.gameClient.legalMoves.filter(
         (move) => move.from === square
       );
-      // const moves = client.moves({
-      //   square,
-      //   verbose: true,
-      // });
       if (moves.length === 0) {
         this.setState({ clickSquaresData: {} });
         return;
@@ -797,8 +795,8 @@ export class App extends React.Component {
 
     if (history.length === 0) return;
     let result = "";
-    if (client.game_over()) {
-      result = client.in_checkmate() ? history.at(-1).color : "d";
+    if (client.isGameOver()) {
+      result = client.isCheckmate() ? history.at(-1).color : "d";
     } else {
       result = prompt(
         "Who won? w/b/d/* (d for draw, * for unknown/in progress)"
@@ -833,6 +831,7 @@ export class App extends React.Component {
     <div>
       <StatusWindow
         reset={this.reset}
+        gameClient={this.state.gameClient}
         status={this.state.gameClient.getStatus()}
         autoMove={this.state.autoMove}
         humanMove={this.getLastHumanMove()}
@@ -849,17 +848,26 @@ export class App extends React.Component {
         />
         <div style={{ color: "red" }}>
           {this.state.customFen !== null &&
-            !this.state.gameClient.client.validate_fen(this.state.customFen)
-              .valid &&
-            "Invalid FEN!"}
+            !validateFen(this.state.customFen).ok && "Invalid FEN!"}
         </div>
       </div>
-
       <Button
         style={{ marginBottom: "1%" }}
+        onClick={() => this.takebackToBeginning()}
+        disabled={!this.state.gameClient.client.isGameOver() && !this.isPlayersMove()}
+      >
+        <svg width="1.5em"
+          height="1.5em" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12.9167 12.0001L23 19.3334L23 4.66675L12.9167 12.0001Z" stroke="#333333" stroke-width="1.83333" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M16.5833 19.3334L6.49998 12.0001L16.5833 4.66675" stroke="#333333" stroke-width="1.83333" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M11.0833 19.3334L0.99998 12.0001L11.0833 4.66675" stroke="#333333" stroke-width="1.83333" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </Button>
+      <Button
+        style={{ marginBottom: "1%", marginLeft: "1%"}}
         onClick={() => this.takeback()}
         disabled={
-          !this.state.gameClient.client.game_over() && !this.isPlayersMove()
+          !this.state.gameClient.client.isGameOver() && !this.isPlayersMove()
         }
       >
         <svg
@@ -871,16 +879,16 @@ export class App extends React.Component {
           <path
             d="M10.2222 12L20 19.1111L20 4.88889L10.2222 12Z"
             stroke="#333333"
-            stroke-width="1.77778"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+            strokeWidth="1.77778"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
           <path
             d="M13.7778 19.1111L3.99999 12L13.7778 4.88889"
             stroke="#333333"
-            stroke-width="1.77778"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+            strokeWidth="1.77778"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </svg>
       </Button>
@@ -898,16 +906,16 @@ export class App extends React.Component {
           <path
             d="M13.7778 12L4 19.1111L4 4.88892L13.7778 12Z"
             stroke="#333333"
-            stroke-width="1.77778"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+            strokeWidth="1.77778"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
           <path
             d="M10.2222 19.1111L20 12L10.2222 4.88892"
             stroke="#333333"
-            stroke-width="1.77778"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+            strokeWidth="1.77778"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
         </svg>
       </Button>

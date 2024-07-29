@@ -2,11 +2,11 @@
 when running in webpack-dev-server and through jest. 
 Just importing twice, and using the one version that works */
 import { Chess } from "chess.js";
-import Chess2 from "chess.js";
+// import Chess2 from "chess.js";
 
 // Using either `Chess` or `Chess2` - see the reason for this hack above
-export const newClient = (fen = startingFen) =>
-  Chess ? new Chess(fen) : new Chess2(fen);
+export const newClient = (fen = startingFen) => new Chess(fen);
+  // Chess ? new Chess(fen) : new Chess2(fen);
 
 export const startingFen =
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -43,22 +43,29 @@ export class GameClient {
     // To test whether a move is valid, we need to create a new client
     // to ensure we are not changing the existing client's state
     const client = newClient(this.client.fen());
-    const result = client.move(move, { sloppy: true });
+    const result = client.move(move);
     return result != null;
   };
-  move = (mv) => this.client.move(mv, { sloppy: true });
+  move = (mv) => {
+    try {
+      return this.client.move(mv);
+    } catch (e) {
+      console.assert(e.message.includes("Invalid move"))
+      return null
+    }
+  }
 
   getStatus = () => {
     this.legalMoves = this.client.moves({ verbose: true });
-    const halfMoveClock = getHalfmoveClock(this.client.fen());
+    // const halfMoveClock = getHalfmoveClock(this.client.fen());
     const client = this.client;
 
     if (client.history().length === 0) return gameStatus.starting;
-    if (client.in_checkmate())
+    if (client.isCheckmate())
       return client.turn() === "b" ? gameStatus.whiteWon : gameStatus.blackWon;
-    if (client.in_threefold_repetition()) return gameStatus.draw;
-    if (client.in_stalemate()) return gameStatus.draw;
-    if (halfMoveClock >= 100) return gameStatus.draw;
+    if (client.isThreefoldRepetition()) return gameStatus.draw;
+    if (client.isStalemate()) return gameStatus.draw;
+    if (client._halfMoves >= 100) return gameStatus.draw;
     return gameStatus.active;
   };
 }
