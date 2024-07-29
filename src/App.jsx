@@ -552,10 +552,16 @@ export class App extends React.Component {
     if (moveRes === null) return;
     move = typeof move === "object" ? moveRes.san : move;
     const newMoves = this.state.moves.push(move);
-    // If automoving is enabled, my move leads to a move by the computer.
-    const nextMoveCallback = this.state.autoMove
-      ? this.makeComputerMoveDelayed
-      : () => {};
+    const nextMoveCallback = () => {
+      if (this.state.autoMove) {
+        this.makeComputerMoveDelayed()
+      }
+      if (this.state.gameClient.client.isGameOver()){
+        setTimeout(() => {
+          alertGameOver(this.state.gameClient.client)
+        }, this.state.boardAppear ? 250 : 0);
+      }
+    }
     const newState = {
       moves: newMoves,
       colorToMoveWhite: !this.state.colorToMoveWhite,
@@ -564,9 +570,6 @@ export class App extends React.Component {
       promotionData: {},
     };
     this.setState(newState, nextMoveCallback);
-    setTimeout(() => {
-      alertGameOver(this.state.gameClient.client)
-    }, 0);
   };
   takebackToBeginning = () =>{
     const newState = resetState(this.state.customFen)
