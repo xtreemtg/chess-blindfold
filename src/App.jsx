@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import * as _ from 'lodash';
 import PropTypes from "prop-types";
 import styles from "./App.css";
 import {
@@ -22,9 +23,7 @@ import { Chessboard } from "react-chessboard";
 import {
   GameClient,
   gameStatus,
-  moveSortCompareFunction,
-  getHalfmoveClock,
-  newClient,
+  moveSortCompareFunction
 } from "./helpers.jsx";
 import { validateFen } from "chess.js"
 import { getBest, makeRandomMove } from "./engine.js";
@@ -155,6 +154,7 @@ const resetState = (fen = null) => {
     customFen: fen === null ? null : fen,
     clickSquaresData: {},
     promotionData: {},
+    boardHistoryData: {}
   };
 };
 
@@ -174,6 +174,7 @@ var startingState = () => {
   state["showIfCheck"] = true;
   state["enterMoveByKeyboard"] = false;
   state["boardAppear"] = false;
+  state["moveEntryAppear"] = true;
   state["moveTableAppear"] = true;
   state["autoMove"] = true;
   state["boardWidth"] = 450;
@@ -537,8 +538,10 @@ export class App extends React.Component {
   };
 
   handleKeyDown = (event) => {
-    if (event.keyCode === 37) this.takeback(); // left arrow take back
-    if (event.keyCode === 39) this.redoMove(); // right arrow redo move
+    if (event.keyCode === 37) this.lookBack(); // left arrow take back
+    else if (event.keyCode === 39) this.lookFoward(); // right arrow redo move
+    else if (event.keyCode === 40) this.lookBackToBeginning(); // bottom arrow redo move
+    // else if (event.keyCode === 38) this.jumpToCurrent(); // top arrow jump to current position
   };
 
   makeComputerMoveDelayed = () => {
@@ -568,14 +571,79 @@ export class App extends React.Component {
       takebackCache: [], // if you make a new move, automatically cancels any takeback history
       clickSquaresData: {},
       promotionData: {},
+      boardHistoryData: {}
     };
     this.setState(newState, nextMoveCallback);
   };
-  takebackToBeginning = () =>{
-    const newState = resetState(this.state.customFen)
-    newState.takebackCache = this.state.gameClient.client.history().reverse()
-    this.setState(newState)
+
+  inLookBackMode = () => this.state.boardHistoryData.client !== undefined;
+
+  lookBackToSpecificMove = (histIdx, move= null) => {
+    // if (!this.state.gameClient.client.isGameOver() && !this.isPlayersMove()) return;
+    if (histIdx === this.state.moves.size - 1) {
+      if (this.inLookBackMode()){
+         this.jumpToCurrent()
+      }
+    } else {
+      let history, client;
+      client = _.cloneDeep(this.state.gameClient.client)
+      client.undo()
+      history = client.history({verbose: true})
+      let histCurrentIdx = history.length - 1;
+      while (histCurrentIdx > histIdx) {
+        client.undo()
+        histCurrentIdx--;
+      }
+      const newHistory = client.history();
+      if(newHistory.length !== 0) console.assert(newHistory.at(-1) === move)
+      const boardHistoryData = {client: client, fullHistory: history, histIdx: histIdx}
+      this.setState({boardHistoryData: boardHistoryData}, () => {
+        // console.log(this.state.boardHistoryData);
+      })
+    }
+
   }
+
+  lookBackToBeginning = () =>{
+    this.lookBackToSpecificMove(-1)
+  }
+
+  jumpToCurrent = () =>{
+    this.setState({boardHistoryData: {}}) // clears boardHistoryData, causing the 'main' board to render
+  }
+
+  lookBack = () => {
+    // if (!this.state.gameClient.client.isGameOver() && !this.isPlayersMove()) return;
+    let boardHistoryData;
+    if (this.inLookBackMode()) {
+      const histIdx = this.state.boardHistoryData.histIdx
+      if (histIdx === -1) return // at the OG position
+      const client = this.state.boardHistoryData.client
+      client.undo()
+      boardHistoryData = {...this.state.boardHistoryData, histIdx: histIdx - 1}
+    } else {
+      const client = _.cloneDeep(this.state.gameClient.client)
+      client.undo()
+      const history = client.history({ verbose: true })
+      boardHistoryData = {client: client, fullHistory: history, histIdx: history.length - 1}
+    }
+    this.setState({boardHistoryData: boardHistoryData})
+  }
+
+  lookFoward = () => {
+    if (this.inLookBackMode()) {
+      const histIdx = this.state.boardHistoryData.histIdx
+      const fullHistory = this.state.boardHistoryData.fullHistory
+      if (histIdx === fullHistory.length - 1) {
+        this.jumpToCurrent()
+      } else {
+        this.state.boardHistoryData.client.move(fullHistory[histIdx + 1])
+        let boardHistoryData = {...this.state.boardHistoryData, histIdx: this.state.boardHistoryData.histIdx + 1}
+        this.setState({boardHistoryData: boardHistoryData})
+      }
+    }
+  }
+
   takeback = () => {
     let gameOver = this.state.gameClient.client.isGameOver();
     if (!gameOver && !this.isPlayersMove()) return;
@@ -593,32 +661,36 @@ export class App extends React.Component {
         }
       }
       newState.moves = newMoves;
-      this.setState(newState);
+      this.setState(newState, () => {
+        if (this.inLookBackMode()){
+         this.jumpToCurrent()
+        }
+      });
     }
   };
 
-  redoMove = () => {
-    if (!this.isPlayersMove()) return;
-    let newMoves = this.state.moves;
-    const newState = { colorToMoveWhite: this.state.colorToMoveWhite };
-    if (this.state.takebackCache.length > 0) {
-      for (let i = 0; i < 2; i++) {
-        const lastUndoneMove = this.state.takebackCache.pop();
-        this.state.gameClient.move(lastUndoneMove);
-        newMoves = newMoves.push(lastUndoneMove);
-        if (
-          !this.state.autoMove ||
-          (i === 0 && this.state.gameClient.client.isGameOver())
-        ) {
-          // if playing computer, or the most recent move ended the game, then only take back a half move
-          newState.colorToMoveWhite = !newState.colorToMoveWhite;
-          break;
-        }
-      }
-      newState.moves = newMoves;
-      this.setState(newState);
-    }
-  };
+  // redoMove = () => {
+  //   if (!this.isPlayersMove()) return;
+  //   let newMoves = this.state.moves;
+  //   const newState = { colorToMoveWhite: this.state.colorToMoveWhite };
+  //   if (this.state.takebackCache.length > 0) {
+  //     for (let i = 0; i < 2; i++) {
+  //       const lastUndoneMove = this.state.takebackCache.pop();
+  //       this.state.gameClient.move(lastUndoneMove);
+  //       newMoves = newMoves.push(lastUndoneMove);
+  //       if (
+  //         !this.state.autoMove ||
+  //         (i === 0 && this.state.gameClient.client.isGameOver())
+  //       ) {
+  //         // if playing computer, or the most recent move ended the game, then only take back a half move
+  //         newState.colorToMoveWhite = !newState.colorToMoveWhite;
+  //         break;
+  //       }
+  //     }
+  //     newState.moves = newMoves;
+  //     this.setState(newState);
+  //   }
+  // };
 
   setFen = (fen) => {
     let isValidFen = validateFen(fen).ok;
@@ -630,12 +702,16 @@ export class App extends React.Component {
   };
 
   onDrop = (sourceSquare, targetSquare, piece) => {
-    if (this.isPlayersMove()) {
-      this.makeMove({
-        from: sourceSquare,
-        to: targetSquare,
-        promotion: piece.slice(-1).toLowerCase(),
-      });
+    if (this.inLookBackMode()){
+      this.jumpToCurrent()
+    } else {
+      if (this.isPlayersMove()) {
+        this.makeMove({
+          from: sourceSquare,
+          to: targetSquare,
+          promotion: piece.slice(-1).toLowerCase(),
+        });
+      }
     }
   };
 
@@ -702,13 +778,14 @@ export class App extends React.Component {
   };
 
   onPromotionPieceSelect = (piece, promoteFromSquare, promoteToSquare) => {
+    const promoteFromSquareExists = promoteFromSquare !== undefined;
     this.makeMove({
       from:
-        promoteFromSquare !== undefined
+        promoteFromSquareExists
           ? promoteFromSquare
           : this.state.promotionData.from,
       to:
-        promoteToSquare !== undefined
+        promoteFromSquareExists
           ? promoteToSquare
           : this.state.promotionData.to,
       promotion: piece.slice(-1).toLowerCase(),
@@ -752,17 +829,26 @@ export class App extends React.Component {
     return history[history.length - offset];
   };
   getLastVerboseMove = () => {
-    let lastMove = this.state.gameClient.client
-      .history({ verbose: true })
-      .at(-1);
-    if (lastMove) return [lastMove.from, lastMove.to];
-    return [];
+     let lastMove;
+     if (this.state.boardHistoryData.client === undefined) {
+       lastMove = this.state.gameClient.client.history({verbose: true})
+           .at(-1);
+       if (lastMove) return [lastMove.from, lastMove.to];
+       return [];
+     }
+     const histIdx = this.state.boardHistoryData.histIdx
+     if (histIdx < 0) return []
+     lastMove = this.state.boardHistoryData.fullHistory.at(histIdx);
+     if (lastMove) return [lastMove.from, lastMove.to];
   };
   getLastComputerMove = this.getLastMove(2, 1);
   getLastHumanMove = this.getLastMove(1, 2);
   toggleBoardAppearance = () => {
     this.setState({ boardAppear: !this.state.boardAppear });
   };
+  toggleMoveEntryAppearance = () => {
+    this.setState({ moveEntryAppear: !this.state.moveEntryAppear });
+  }
   toggleMoveTableAppearance = () =>
     this.setState({ moveTableAppear: !this.state.moveTableAppear });
   toggleAutoMove = () => {
@@ -856,8 +942,7 @@ export class App extends React.Component {
       </div>
       <Button
         style={{ marginBottom: "1%" }}
-        onClick={() => this.takebackToBeginning()}
-        disabled={!this.state.gameClient.client.isGameOver() && !this.isPlayersMove()}
+        onClick={() => this.lookBackToBeginning()}
       >
         <svg width="1.5em"
           height="1.5em" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -868,10 +953,7 @@ export class App extends React.Component {
       </Button>
       <Button
         style={{ marginBottom: "1%", marginLeft: "1%"}}
-        onClick={() => this.takeback()}
-        disabled={
-          !this.state.gameClient.client.isGameOver() && !this.isPlayersMove()
-        }
+        onClick={() => this.lookBack()}
       >
         <svg
           width="1.5em"
@@ -897,8 +979,7 @@ export class App extends React.Component {
       </Button>
       <Button
         style={{ marginBottom: "1%", marginLeft: "1%" }}
-        onClick={() => this.redoMove()}
-        disabled={!this.isPlayersMove()}
+        onClick={() => this.lookFoward()}
       >
         <svg
           width="1.5em"
@@ -924,9 +1005,17 @@ export class App extends React.Component {
       </Button>
       <Button
         style={{ marginBottom: "1%", marginLeft: "1%" }}
+        onClick={() => this.takeback()} disabled={
+          !this.state.gameClient.client.isGameOver() && !this.isPlayersMove()
+        }
+      >
+        Takeback
+      </Button>
+      <Button
+        style={{ marginBottom: "1%", marginLeft: "1%" }}
         onClick={() => this.downloadPGN()}
       >
-        Download PGN
+        PGN
       </Button>
       <Button
         style={{ marginBottom: "1%", marginLeft: "1%" }}
@@ -937,7 +1026,15 @@ export class App extends React.Component {
         {this.state.boardAppear ? "Hide Board" : "Show Board"}
       </Button>
       {this.state.boardAppear && this.boardElement()}
-      {this.isPlayersMove() ? (
+      <Button
+        style={{ marginBottom: "1%", marginTop: "1%"}}
+        variant="primary"
+        id="toggleMoveEntryAppearance"
+        onClick={() => this.toggleMoveEntryAppearance()}
+      >
+        {this.state.moveEntryAppear ? "Hide Move Options" : "Show Move Options"}
+      </Button>
+      {this.state.moveEntryAppear && this.isPlayersMove() ? (
         <Row>
           <MoveEntry
             enterMoveByKeyboard={this.state.enterMoveByKeyboard}
@@ -961,7 +1058,39 @@ export class App extends React.Component {
     </div>
   );
   boardElement = () => {
-    let lastMove = this.getLastVerboseMove();
+    const lastMove = this.getLastVerboseMove();
+    const orientation = this.state.ownColorWhite ? "white" : "black"
+    const animationDuration = 100;
+    const boardWidth = this.state.boardWidth
+    const board = this.inLookBackMode() ?
+        (<Chessboard id="history"
+          position={this.state.boardHistoryData.client.fen()}
+          onPieceDrop={this.onDrop}
+          boardOrientation={orientation}
+          boardWidth={boardWidth}
+          animationDuration={animationDuration}
+          customArrows={[lastMove]}
+          customDarkSquareStyle={{ backgroundColor: "#c39f82" }}
+          customLightSquareStyle={{ backgroundColor: "#f3e0c3" }}
+            />
+        ) : (
+        <Chessboard
+            id="main"
+          position={this.state.gameClient.client.fen()}
+          onPieceDrop={this.onDrop}
+          onSquareClick={this.onSquareClick}
+          onPieceClick={this.onPieceClick}
+          boardOrientation={orientation}
+          boardWidth={boardWidth}
+          animationDuration={animationDuration}
+          customArrows={[lastMove]}
+          customSquareStyles={this.state.clickSquaresData.newSquares}
+          showPromotionDialog={
+            Object.keys(this.state.promotionData).length !== 0
+          }
+          onPromotionPieceSelect={this.onPromotionPieceSelect}
+        />
+        )
     return (
       <div style={{ justifyContent: "center" }}>
         {/*<Board fen={this.state.gameClient.client.fen()} />*/}
@@ -974,21 +1103,7 @@ export class App extends React.Component {
           </Button>
           <Button onClick={this.increaseBoardWidth}>+</Button>
         </div>
-        <Chessboard
-          position={this.state.gameClient.client.fen()}
-          onPieceDrop={this.onDrop}
-          onSquareClick={this.onSquareClick}
-          onPieceClick={this.onPieceClick}
-          boardOrientation={this.state.ownColorWhite ? "white" : "black"}
-          boardWidth={this.state.boardWidth}
-          animationDuration={100}
-          customArrows={[lastMove]}
-          customSquareStyles={this.state.clickSquaresData.newSquares}
-          showPromotionDialog={
-            Object.keys(this.state.promotionData).length !== 0
-          }
-          onPromotionPieceSelect={this.onPromotionPieceSelect}
-        />
+        {board}
       </div>
     );
   };
@@ -996,10 +1111,15 @@ export class App extends React.Component {
     return <Chessboard />;
   };
   handleChange = (value) => this.setState({ showType: value });
+  handleCellClick = (colNum, rowNum, cellData) => {
+    const histIdx = (rowNum  * 2 ) + (colNum === 2 ? 1 : 0)
+    this.lookBackToSpecificMove(histIdx, cellData)
+    // Perform any other actions with the data
+  };
   moveTableElement = () => {
     return (
       <div style={{ display: "flex", justifyContent: "center" }}>
-        <MoveTable pgn={this.state.gameClient.client.pgn()} />
+        <MoveTable pgn={this.state.gameClient.client.pgn()} onCellClick={this.handleCellClick} shouldScrollBottom={!this.inLookBackMode()}/>
       </div>
     );
   };

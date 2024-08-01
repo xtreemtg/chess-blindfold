@@ -73,7 +73,7 @@ const Styles = styled.div`
   }
 `;
 
-function Table({ columns, data }) {
+function Table({ columns, data, onCellClick, shouldScrollBottom}) {
   // Use the state and functions returned from useTable to build your UI
   const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } =
     useTable({
@@ -83,7 +83,7 @@ function Table({ columns, data }) {
 
   const tableContainerRef = useRef(null);
   const scrollToBottom = () => {
-    if (tableContainerRef.current) {
+    if (tableContainerRef.current && shouldScrollBottom) {
       tableContainerRef.current.scrollTop =
         tableContainerRef.current.scrollHeight;
     }
@@ -91,6 +91,11 @@ function Table({ columns, data }) {
   useEffect(() => {
     scrollToBottom();
   });
+  const onCellClicked = (colNum, rowNum, cellData) => {
+    if (onCellClick) {
+      onCellClick(colNum, rowNum, cellData);
+    }
+  };
 
   // Render the UI for your table
   return (
@@ -111,15 +116,19 @@ function Table({ columns, data }) {
           ))}
         </thead>
         <tbody {...getTableBodyProps()}>
-          {rows.map((row) => {
+          {rows.map((row, rowIndex) => {
             prepareRow(row);
             return (
               // eslint-disable-next-line react/jsx-key
               <tr {...row.getRowProps()}>
-                {row.cells.map((cell) => {
+                {row.cells.map((cell, colIndex) => {
                   // eslint-disable-next-line react/jsx-key
                   return (
-                    <td {...cell.getCellProps()}>{cell.render("Cell")}</td>
+                    <td {...cell.getCellProps({
+                      onClick: () =>
+                      onCellClicked(colIndex, rowIndex, cell.value),
+                      style: { cursor: 'pointer' }
+                    })}>{cell.render("Cell")}</td>
                   );
                 })}
               </tr>
@@ -173,7 +182,7 @@ export class MoveTable extends React.Component {
     return (
       <Row className="justify-content-md-center">
         <Styles>
-          <Table columns={cols} data={data} />
+          <Table columns={cols} data={data} onCellClick={this.props.onCellClick} shouldScrollBottom={this.props.shouldScrollBottom}/>
         </Styles>
       </Row>
     );
