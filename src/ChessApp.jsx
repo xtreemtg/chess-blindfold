@@ -168,16 +168,30 @@ export class MoveTable extends React.Component {
   constructor(props) {
     super(props);
   }
-  getMoves = () => defaultGetRows(this.props.pgn);
-  rowMapper = (row) => ({
-    moveNumber: row[0],
-    white: row[1],
-    black: row[2],
-  });
-  getData = () => this.getMoves().map(this.rowMapper);
+  // getMoves = () => defaultGetRows(this.props.pgn);
+  // rowMapper = (row) => ({
+  //   moveNumber: row[0],
+  //   white: row[1],
+  //   black: row[2],
+  // });
+  // getData = () => this.getMoves().map(this.rowMapper);
+  generateMoveList = (history) => {
+  const moveList = [];
+
+  // Iterate through the move history in steps of 2 (for White and Black moves)
+  for (let i = 0; i < history.length; i += 2) {
+    moveList.push({
+      moveNumber: Math.floor(i / 2) + 1,
+      white: history[i],
+      black: history[i + 1] || null,// Black's move might not exist if it's White's turn
+    });
+  }
+  return moveList;
+}
   render = () => {
-    var data = this.getData();
-    if (data.length == 0)
+    // var data = this.getData();
+    const data = this.generateMoveList(this.props.client.history())
+    if (data.length === 0)
       return <div style={{ textAlign: "center" }}>No moves yet</div>;
     return (
       <Row className="justify-content-md-center">

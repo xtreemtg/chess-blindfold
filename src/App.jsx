@@ -23,7 +23,7 @@ import { Chessboard } from "react-chessboard";
 import {
   GameClient,
   gameStatus,
-  moveSortCompareFunction
+  moveSortCompareFunction, newClient, generateRandomKRKPosition, generateRandomKBBKPosition, generateRandomKNBKPosition
 } from "./helpers.jsx";
 import { validateFen } from "chess.js"
 import { getBest, makeRandomMove } from "./engine.js";
@@ -59,7 +59,8 @@ export class MoveEntry extends React.Component {
   };
   submit = () => this.makeMove(this.state.value);
   makeMove = (move) => {
-    const moveValid = this.props.gameClient.isMoveValid(move);
+    // const moveValid = this.props.gameClient.isMoveValid(move);
+    const moveValid = this.props.gameClient.client.moves().includes(move);
     if (moveValid) {
       this.props.makeMove(move);
       this.setState({ value: "", warning: null });
@@ -142,16 +143,15 @@ MoveEntry.propTypes = {
   parentState: PropTypes.object,
 };
 
-const resetState = (fen = null) => {
-  let gameClient =
-    typeof fen === "string" ? new GameClient(fen) : new GameClient();
+const resetState = (loader={}) => {
+  let gameClient = new GameClient(loader);
   return {
     moves: List([]),
     gameClient: gameClient,
     colorToMoveWhite: gameClient.client.turn() === "w",
     showType: "make",
     takebackCache: [],
-    customFen: fen === null ? null : fen,
+    customFen: loader.fen === undefined ? null : loader.fen,
     clickSquaresData: {},
     promotionData: {},
     boardHistoryData: {}
@@ -173,7 +173,7 @@ var startingState = () => {
   state["showIfTakes"] = true;
   state["showIfCheck"] = true;
   state["enterMoveByKeyboard"] = false;
-  state["boardAppear"] = false;
+  state["boardAppear"] = true;
   state["moveEntryAppear"] = true;
   state["moveTableAppear"] = true;
   state["autoMove"] = true;
@@ -238,11 +238,6 @@ const alertGameOver = (client) => {
     }
   };
 
-const getUTCDateAndTimeForPGN = () => {
-  const now = new Date();
-
-  return [dateTag, timeTag];
-};
 
 /* Displays the window to change settings */
 export class SettingsWindow extends React.Component {
@@ -382,24 +377,20 @@ export class StatusWindow extends React.Component {
   }
 
   render = () => {
-    const humanText = this.props.humanMove ? (
-      <div>
-        <span>You played </span>
-        <Badge bg="secondary"> {this.props.humanMove}</Badge>
-      </div>
-    ) : (
-      <span>Make your move!</span>
-    );
-    const computerText = this.props.isComputerMove ? (
-      <span>Computer is thinking...</span>
-    ) : this.props.computerMove ? (
-      <div>
-        <span>Computer played </span>
-        <Badge bg="secondary">{this.props.computerMove}</Badge>
-      </div>
-    ) : (
-      <span>Computer is waiting...</span>
-    );
+    const mostRecentMove = this.props.mostRecentMove
+    const move = mostRecentMove === null ? (<span >No Moves Played</span>) : (<Badge bg="secondary">{mostRecentMove}</Badge>)
+    const computerThinking = (<div><span>You Played&nbsp;</span><Badge bg="secondary">{mostRecentMove}</Badge><span >&nbsp;Computer is thinking...</span></div>)
+    const moveElement = (
+          <Row>
+          <div className="text-center">
+            <span className={styles.statusStyle}>
+              <div>
+                {this.props.isComputerMove ? computerThinking : move}
+              </div>
+            </span>
+          </div>
+        </Row>
+    )
     return (
       <div>
         <Row style={{ marginTop: 20 }}>
@@ -415,7 +406,7 @@ export class StatusWindow extends React.Component {
           </Col>
           <Col xs={6}>
             <div className="text-center">
-              {this.props.status == gameStatus.starting ? null : (
+              {this.props.status === gameStatus.starting ? null : (
                 <Button
                   style={{ height: 50 }}
                   className={styles.newGameButton}
@@ -429,18 +420,7 @@ export class StatusWindow extends React.Component {
             </div>
           </Col>
         </Row>
-        <Row>
-          <div className="text-center">
-            <span className={styles.statusStyle}>{humanText}</span>
-          </div>
-        </Row>
-        {this.props.autoMove && (
-          <Row>
-            <div className="text-center">
-              <span className={styles.statusStyle}>{computerText}</span>
-            </div>
-          </Row>
-        )}
+        {moveElement}
       </div>
     );
   };
@@ -505,22 +485,51 @@ class InputComponent extends React.Component {
   }
 }
 
+
+const PGNUpload = ({ onPGNLoad }) => {
+  const [isValidPGN, setValidPgn] = useState(true);
+  // const [pgn, setPgn] = useState('');
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const pgnContent = e.target.result;
+        onPGNLoad(pgnContent, (isValid) => setValidPgn(isValid));
+      };
+      reader.readAsText(file);
+    }
+    event.target.value = null;
+  };
+
+  return (
+    <div>
+      <label htmlFor="pgnUpload">Upload PGN file: </label>
+      <input
+        type="file"
+        accept=".pgn"
+        onChange={handleFileUpload}
+        id="pgnUpload"
+      /><div style={{ color: "red" }}>
+      {!isValidPGN && "Bad PGN!"}
+      </div>
+    </div>
+  );
+};
+
+
 /* The main app, which pulls in all the other windows. */
 export class App extends React.Component {
   constructor(props) {
     super(props);
     this.state = startingState();
   }
-  reset = (fen = null) => {
-    fen = typeof fen === "string" ? fen : null;
-    this.setState(resetState(fen), () => {
+  reset = (loader) => {
+    this.setState(resetState(loader), () => {
       if (this.state.autoMove) this.makeComputerMove();
     });
   };
-
-  // componentDidMount() {
-  //
-  // }
 
   // eslint-disable-next-line no-unused-vars
   componentDidUpdate = (prevProps, prevState, snapshot) => {
@@ -623,6 +632,7 @@ export class App extends React.Component {
       boardHistoryData = {...this.state.boardHistoryData, histIdx: histIdx - 1}
     } else {
       const client = _.cloneDeep(this.state.gameClient.client)
+      if(client.history().length === 0) return
       client.undo()
       const history = client.history({ verbose: true })
       boardHistoryData = {client: client, fullHistory: history, histIdx: history.length - 1}
@@ -669,33 +679,37 @@ export class App extends React.Component {
     }
   };
 
-  // redoMove = () => {
-  //   if (!this.isPlayersMove()) return;
-  //   let newMoves = this.state.moves;
-  //   const newState = { colorToMoveWhite: this.state.colorToMoveWhite };
-  //   if (this.state.takebackCache.length > 0) {
-  //     for (let i = 0; i < 2; i++) {
-  //       const lastUndoneMove = this.state.takebackCache.pop();
-  //       this.state.gameClient.move(lastUndoneMove);
-  //       newMoves = newMoves.push(lastUndoneMove);
-  //       if (
-  //         !this.state.autoMove ||
-  //         (i === 0 && this.state.gameClient.client.isGameOver())
-  //       ) {
-  //         // if playing computer, or the most recent move ended the game, then only take back a half move
-  //         newState.colorToMoveWhite = !newState.colorToMoveWhite;
-  //         break;
-  //       }
-  //     }
-  //     newState.moves = newMoves;
-  //     this.setState(newState);
-  //   }
-  // };
+  redoMove = () => {
+    if (!this.isPlayersMove()) return;
+    let newMoves = this.state.moves;
+    const newState = { colorToMoveWhite: this.state.colorToMoveWhite };
+    if (this.state.takebackCache.length > 0) {
+      for (let i = 0; i < 2; i++) {
+        const lastUndoneMove = this.state.takebackCache.pop();
+        this.state.gameClient.move(lastUndoneMove);
+        newMoves = newMoves.push(lastUndoneMove);
+        if (
+          !this.state.autoMove ||
+          (i === 0 && this.state.gameClient.client.isGameOver())
+        ) {
+          // if playing computer, or the most recent move ended the game, then only take back a half move
+          newState.colorToMoveWhite = !newState.colorToMoveWhite;
+          break;
+        }
+      }
+      newState.moves = newMoves;
+      this.setState(newState, () => {
+        if (this.inLookBackMode()){
+         this.jumpToCurrent()
+        }
+      });
+    }
+  };
 
   setFen = (fen) => {
     let isValidFen = validateFen(fen).ok;
     if (isValidFen) {
-      this.reset(fen);
+      this.reset({fen: fen});
     } else {
       this.setState({ customFen: fen });
     }
@@ -819,14 +833,16 @@ export class App extends React.Component {
         return this.moveTableAndBoardElement();
       case "settings":
         return this.settingsElement();
-      case "board-editor":
-        return this.boardEditorElement();
+      case "endgameVariations":
+        return this.endgameVariations();
     }
   };
-  getLastMove = (offsetTrue, offsetFalse) => () => {
+  getLastXMove = (x) => {
+    // when x = 0, return the most recent move. x = 1, return the 2nd most recent. and so on
     const history = this.state.gameClient.client.history();
-    const offset = !this.isPlayersMove() ? offsetTrue : offsetFalse;
-    return history[history.length - offset];
+    if (history.length === 0) return null
+    let move = history.at(-x - 1)
+    return move === undefined ? null : move
   };
   getLastVerboseMove = () => {
      let lastMove;
@@ -841,8 +857,8 @@ export class App extends React.Component {
      lastMove = this.state.boardHistoryData.fullHistory.at(histIdx);
      if (lastMove) return [lastMove.from, lastMove.to];
   };
-  getLastComputerMove = this.getLastMove(2, 1);
-  getLastHumanMove = this.getLastMove(1, 2);
+  // getLastComputerMove = this.getLastMove(2, 1);
+  // getLastHumanMove = this.getLastMove(1, 2);
   toggleBoardAppearance = () => {
     this.setState({ boardAppear: !this.state.boardAppear });
   };
@@ -876,6 +892,20 @@ export class App extends React.Component {
       }
       return null;
     });
+  };
+
+  handlePGNLoad = (pgnContent, handlePGN) => {
+    const client = newClient();
+    try {
+      client.loadPgn(pgnContent)
+      handlePGN(true)
+      // this.reset({pgn: pgnContent})
+      this.setState({...resetState({pgn: pgnContent}), autoMove: false, moves: List(client.history())});
+    } catch (e) {
+      if(e.message.includes("Invalid move")){ //i.e. is not a valid PGN
+        handlePGN(false)
+      }
+    }
   };
 
   downloadPGN = () => {
@@ -915,18 +945,9 @@ export class App extends React.Component {
     element.click();
     document.body.removeChild(element);
   };
-
   makeMoveElement = () => (
     <div>
-      <StatusWindow
-        reset={this.reset}
-        gameClient={this.state.gameClient}
-        status={this.state.gameClient.getStatus()}
-        autoMove={this.state.autoMove}
-        humanMove={this.getLastHumanMove()}
-        computerMove={this.getLastComputerMove()}
-        isComputerMove={!this.isPlayersMove()}
-      />
+      {this.statusWindowElement()}
       <div style={{ marginBottom: "1%" }}>
         Insert custom FEN:
         <InputComponent
@@ -940,6 +961,7 @@ export class App extends React.Component {
             !validateFen(this.state.customFen).ok && "Invalid FEN!"}
         </div>
       </div>
+      <PGNUpload onPGNLoad={this.handlePGNLoad} />
       <Button
         style={{ marginBottom: "1%" }}
         onClick={() => this.lookBackToBeginning()}
@@ -1013,6 +1035,14 @@ export class App extends React.Component {
       </Button>
       <Button
         style={{ marginBottom: "1%", marginLeft: "1%" }}
+        onClick={() => this.redoMove()} disabled={
+          !this.state.gameClient.client.isGameOver() && !this.isPlayersMove()
+        }
+      >
+        Redo Move
+      </Button>
+      <Button
+        style={{ marginBottom: "1%", marginLeft: "1%" }}
         onClick={() => this.downloadPGN()}
       >
         PGN
@@ -1057,6 +1087,64 @@ export class App extends React.Component {
       </div>
     </div>
   );
+  statusWindowElement = () => {
+    const isGameOver = this.state.gameClient.client.isGameOver()
+    const inLookBackMode = this.inLookBackMode()
+    let mostRecentMove
+    if (inLookBackMode){
+      try {
+         mostRecentMove = this.state.boardHistoryData.fullHistory[this.state.boardHistoryData.histIdx].san
+      } catch (e) {
+         mostRecentMove = null
+      }
+    } else {
+      mostRecentMove = this.getLastXMove(0)
+    }
+    return <StatusWindow
+        reset={this.reset}
+        status={this.state.gameClient.getStatus()}
+        mostRecentMove={mostRecentMove}
+        isComputerMove={!isGameOver && !inLookBackMode && !this.isPlayersMove()}
+      />
+  }
+
+  handleEndgameVariationsChange = (endgameTypeFunc) => {
+    const fen = endgameTypeFunc()
+    if(typeof fen === "string") this.reset({fen: fen})
+  }
+
+  endgameVariations = () => {
+  const variations = [
+    {
+      label: "King & Rook vs King",
+      endgameTypeFunc: generateRandomKRKPosition,
+    },
+    {
+      label: "King & 2 Bishops vs King",
+      endgameTypeFunc: generateRandomKBBKPosition,
+    },
+    {
+      label: "King, Knight & Bishop vs King",
+      endgameTypeFunc: generateRandomKNBKPosition,
+    }
+  ];
+  return (
+    <div>
+      {variations.map((el) => {
+        return (
+          <Button
+            onClick={() =>
+              this.handleEndgameVariationsChange(el.endgameTypeFunc)
+            }
+          >
+            {el.label}
+          </Button>
+        );
+      })}
+    </div>
+  );
+};
+
   boardElement = () => {
     const lastMove = this.getLastVerboseMove();
     const orientation = this.state.ownColorWhite ? "white" : "black"
@@ -1119,7 +1207,7 @@ export class App extends React.Component {
   moveTableElement = () => {
     return (
       <div style={{ display: "flex", justifyContent: "center" }}>
-        <MoveTable pgn={this.state.gameClient.client.pgn()} onCellClick={this.handleCellClick} shouldScrollBottom={!this.inLookBackMode()}/>
+        <MoveTable client={this.state.gameClient.client} onCellClick={this.handleCellClick} shouldScrollBottom={!this.inLookBackMode()}/>
       </div>
     );
   };
@@ -1208,6 +1296,13 @@ export class App extends React.Component {
                   onClick={() => this.handleChange("settings")}
                 >
                   Settings
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="btn btn-default w-100"
+                  onClick={() => this.handleChange("endgameVariations")}
+                >
+                  Endgame Variaions
                 </Button>
                 {/*<Button*/}
                 {/*  variant="secondary"*/}
